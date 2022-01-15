@@ -40,6 +40,9 @@ int         musEOT;
 BYTE        deltaBytes[4];
 int         deltaCount;
 
+// maintain a list of channel volume
+BYTE        musChannel[16];
+
 void convert()
 {
     BYTE        data, last, channel;
@@ -55,7 +58,7 @@ void convert()
       case 0x00:
         event[0] = 0x80;
         event[1] = *musPos++ & 0x7f;
-        event[2] = 0x7f;
+        event[2] = musChannel[channel];
         count = 3;
         break;
 
@@ -63,8 +66,8 @@ void convert()
         event[0] = 0x90;
         data = *musPos++;
         event[1] = data & 0x7f;
-        // should volume be maximum if not specified?
-        event[2] = data & 0x80 ? *musPos++ : 0x7f;
+        event[2] = data & 0x80 ? *musPos++ : musChannel[channel];
+        musChannel[channel] = event[2];
         count = 3;
         break;
 
@@ -146,6 +149,7 @@ BYTE *mus2midi(BYTE *data, int *length)
     HDR_MID     hdrMid;
     BYTE        *midTrkLen;
     int         trackLen;
+    int         i;
 
     if (strncmp(hdrMus->id, magicMus, 4) != 0)
         return NULL;
@@ -158,7 +162,8 @@ BYTE *mus2midi(BYTE *data, int *length)
     hdrMid.length = __builtin_bswap32(6);
     hdrMid.type = __builtin_bswap16(0); // single track should be type 0
     hdrMid.ntracks = __builtin_bswap16(1);
-    hdrMid.ticks = __builtin_bswap16(70); // 70 ppqn = 140 per second @ tempo = 500000 (default)
+    // maybe, set 140ppqn and set tempo to 1000000µs
+    hdrMid.ticks = __builtin_bswap16(70); // 70 ppqn = 140 per second @ tempo = 500000µs (default)
     midData = malloc(midSize);
     memcpy(midData, &hdrMid, midSize);
 
@@ -175,12 +180,20 @@ BYTE *mus2midi(BYTE *data, int *length)
     deltaBytes[0] = 0;
     deltaCount = 1;
 
+    for (i = 0; i < 16; i++)
+        musChannel[i] = 0;
+
     while (!musEOT)
         convert();
 
-    midData = realloc(midData, midSize + 4);
-    memcpy(midData + midSize, magicEOT, 4);
-    midSize += 4;
+    // a final delta time must be added prior to the EOT event
+    midData = realloc(midData, midSize + deltaCount);
+    memcpy(midData + midSize, &deltaBytes, deltaCount);
+    midSize += deltaCount;
+
+    midData = realloc(midData, midSize + 3);
+    memcpy(midData + midSize, magicEOT + 1, 3);
+    midSize += 3;
 
     trackLen = __builtin_bswap32(midSize - sizeof(HDR_MID) - 8);
     memcpy(midTrkLen, &trackLen, 4);
