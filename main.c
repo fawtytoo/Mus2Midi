@@ -56,11 +56,11 @@ int main(int argc, char **argv)
         file = fopen(filename, "wb");
         fwrite(midData, size, 1, file);
         fclose(file);
+        free(midData);
         printf("MIDI file written to %s\n", filename);
     }
 
     free(filename);
-    free(midData);
 
     return 0;
 }
