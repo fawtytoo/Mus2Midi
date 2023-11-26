@@ -147,7 +147,7 @@ BYTE *mus2midi(BYTE *data, int *length)
 {
     HDR_MUS     *hdrMus = (HDR_MUS *)data;
     HDR_MID     hdrMid;
-    BYTE        *midTrkLen;
+    int         midTrkLenOffset;
     int         trackLen;
     int         i;
 
@@ -170,7 +170,7 @@ BYTE *mus2midi(BYTE *data, int *length)
     midData = realloc(midData, midSize + 8);
     memcpy(midData + midSize, magicTrk, 4);
     midSize += 4;
-    midTrkLen = midData + midSize;
+    midTrkLenOffset = midSize;
     midSize += 4;
 
     trackLen = 0;
@@ -196,7 +196,7 @@ BYTE *mus2midi(BYTE *data, int *length)
     midSize += 3;
 
     trackLen = __builtin_bswap32(midSize - sizeof(HDR_MID) - 8);
-    memcpy(midTrkLen, &trackLen, 4);
+    memcpy(midData + midTrkLenOffset, &trackLen, 4);
 
     *length = midSize;
 
