@@ -27,7 +27,6 @@ typedef struct
 char        magicMus[4] = {'M', 'U', 'S', 0x1a};
 char        magicMid[4] = {'M', 'T', 'h', 'd'};
 char        magicTrk[4] = {'M', 'T', 'r', 'k'};
-BYTE        magicEOT[4] = {0x00, 0xff, 0x2f, 0x00};
 
 int         controllerMap[16] = {-1, 0, 1, 7, 10, 11, 91, 93, 64, 67, 120, 123, 126, 127, 121, -1};
 
@@ -104,8 +103,16 @@ void convert()
         return;
 
       case 0x60:
+        event[0] = 0xff;
+        event[1] = 0x2f;
+        event[2] = 0x00;
+        count = 3;
+
+        // this prevents deltaBytes being read past the end of the MUS data
+        last = 0;
+
         musEOT = 1;
-        return;
+        break;
 
       case 0x70:
         musPos++;
@@ -185,15 +192,6 @@ BYTE *mus2midi(BYTE *data, int *length)
 
     while (!musEOT)
         convert();
-
-    // a final delta time must be added prior to the EOT event
-    midData = realloc(midData, midSize + deltaCount);
-    memcpy(midData + midSize, &deltaBytes, deltaCount);
-    midSize += deltaCount;
-
-    midData = realloc(midData, midSize + 3);
-    memcpy(midData + midSize, magicEOT + 1, 3);
-    midSize += 3;
 
     trackLen = __builtin_bswap32(midSize - sizeof(HDR_MID) - 8);
     memcpy(midData + midTrkLenOffset, &trackLen, 4);
